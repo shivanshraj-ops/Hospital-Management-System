@@ -1,0 +1,12 @@
+{
+  "name": "medicare-hms-vercel",
+  "version": "1.0.0",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cookie": "^1.0.2",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.14.5"
+  }
+}

@@ -1,33 +1,9 @@
-﻿{
-  "version": 2,
-  "functions": {
-    "api/*.php": {
-      "runtime": "vercel-php@0.7.3"
-    },
-    "*.php": {
-      "runtime": "vercel-php@0.7.3"
-    }
-  },
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/$1",
-      "headers": {
-        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-        "Pragma": "no-cache"
-      }
-    },
-    {
-      "src": "/",
-      "dest": "/s1.html"
-    },
-    {
-      "src": "/index.php",
-      "dest": "/s1.html"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/$1"
-    }
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": { "api/*.js": { "maxDuration": 10 } },
+  "headers": [
+    { "source": "/api/(.*)", "headers": [
+      { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, max-age=0" }
+    ]}
   ]
 }
