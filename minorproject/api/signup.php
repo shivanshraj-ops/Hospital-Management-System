@@ -45,14 +45,37 @@ if ($checkStmt->fetch()) {
     jsonResponse(false, 'An account with this email already exists.', null, 409);
 }
 
+// Generate unique username from email if not provided
+$username = trim($data['username'] ?? '');
+if (empty($username)) {
+    $baseUser = strtolower(preg_replace('/[^a-zA-Z0-9_]/', '', explode('@', $email)[0]));
+    if (empty($baseUser)) {
+        $baseUser = 'user';
+    }
+    $uCheck = $db->prepare("SELECT id FROM users WHERE LOWER(username) = LOWER(:u) LIMIT 1");
+    $uCheck->execute([':u' => $baseUser]);
+    if ($uCheck->fetch()) {
+        $username = $baseUser . '_' . rand(100, 9999);
+    } else {
+        $username = $baseUser;
+    }
+} else {
+    $uCheck = $db->prepare("SELECT id FROM users WHERE LOWER(username) = LOWER(:u) LIMIT 1");
+    $uCheck->execute([':u' => $username]);
+    if ($uCheck->fetch()) {
+        jsonResponse(false, 'This username is already taken.', null, 409);
+    }
+}
+
 $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
 
 $insertStmt = $db->prepare(
-    "INSERT INTO users (full_name, email, age, password, role, created_at)
-     VALUES (:full_name, :email, :age, :password, 'patient', NOW())"
+    "INSERT INTO users (username, full_name, email, age, password, role, created_at)
+     VALUES (:username, :full_name, :email, :age, :password, 'patient', NOW())"
 );
 
 $insertStmt->execute([
+    ':username'  => $username,
     ':full_name' => $fullName,
     ':email'     => $email,
     ':age'       => $age,

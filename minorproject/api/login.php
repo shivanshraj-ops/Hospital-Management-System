@@ -37,9 +37,9 @@ $updateStmt->execute([':id' => $user['id']]);
 $now = date('c');
 
 // Store in PHP session
-$_SESSION['user'] = [
+$userPayload = [
     'id'         => (int)$user['id'],
-    'username'   => $user['username'],
+    'username'   => $user['username'] ?? '',
     'fullName'   => $user['full_name'],
     'email'      => $user['email'],
     'age'        => $user['age'] !== null ? (int)$user['age'] : null,
@@ -48,7 +48,11 @@ $_SESSION['user'] = [
     'createdAt'  => $user['created_at'],
     'lastLogin'  => $now,
 ];
+$_SESSION['user'] = $userPayload;
+
+// Set the stateless signed authentication cookie
+setAuthCookie(createSignedToken($userPayload));
 
 jsonResponse(true, 'Welcome back, ' . $user['full_name'] . '!', [
-    'user' => $_SESSION['user']
+    'user' => $userPayload
 ]);

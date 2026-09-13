@@ -4,6 +4,9 @@
 function jsonResponse(bool $success, string $message = '', $data = null, int $statusCode = 200): void {
     if (!headers_sent()) {
         header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        header('Pragma: no-cache');
+        header('Expires: 0');
         http_response_code($statusCode);
     }
 

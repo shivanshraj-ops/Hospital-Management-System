@@ -5,6 +5,11 @@ require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/response.php';
 require_once __DIR__ . '/../includes/auth.php';
 
+$user = requireAuth();
+if ($user['role'] !== 'admin' && $user['role'] !== 'staff') {
+    jsonResponse(false, 'Forbidden. Administrator privileges required.', null, 403);
+}
+
 $db = getDBConnection();
 
 // Total patients

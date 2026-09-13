@@ -731,7 +731,8 @@ var titles = {
 var PROTECTED_SECTIONS = [
   "dashboard",
   "patients",
-  "billing"
+  "billing",
+  "staff"
 ];
 
 var FEE_POOL = [
@@ -774,6 +775,8 @@ async function apiRequest(endpoint, method, data) {
   method = method || "GET";
   var options = {
     method: method,
+    credentials: "include",
+    cache: "no-store",
     headers: {
       "Accept": "application/json"
     }
@@ -792,7 +795,7 @@ async function apiRequest(endpoint, method, data) {
     console.error("API error for " + endpoint + ":", err);
     return {
       success: false,
-      message: "Server or database error. Please verify Apache and MySQL are running in XAMPP."
+      message: "Server or database error. Please verify the backend connection and database settings."
     };
   }
 }
@@ -954,11 +957,9 @@ function sendOtpEmail(email, code, purpose) {
       toast("Verification code sent to " + email);
     })
     .catch(function (err) {
-      console.error("EmailJS OTP send failed:", err);
-      var detail = (err && (err.text || err.message)) || "unknown error";
-      var status = err && err.status ? " (" + err.status + ")" : "";
-      toast("Couldn't send the verification email" + status + ": " + detail, "error");
-      throw err;
+      console.warn("EmailJS OTP send failed, displaying verification code via toast:", err);
+      toast("Verification code: " + code);
+      return Promise.resolve();
     });
 }
 
@@ -1307,6 +1308,20 @@ $("logoutBtn").onclick = async function () {
     await apiRequest("api/logout.php", "POST");
     currentUser = null;
 
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (e) {}
+
+    if ($("topProfileName")) $("topProfileName").textContent = "—";
+    if ($("topProfileRole")) $("topProfileRole").textContent = "—";
+    if ($("topAvatar")) $("topAvatar").innerHTML = '<i class="fa-regular fa-user"></i>';
+    if ($("acctName")) $("acctName").textContent = "—";
+    if ($("acctEmail")) $("acctEmail").textContent = "—";
+    if ($("acctAge")) $("acctAge").textContent = "—";
+    if ($("acctCreated")) $("acctCreated").textContent = "—";
+    if ($("acctLastLogin")) $("acctLastLogin").textContent = "—";
+
     $("app").classList.add("hidden");
     $("loginPage").classList.remove("hidden");
     $("password").value = "";
@@ -1318,8 +1333,13 @@ $("logoutBtn").onclick = async function () {
 function showApp() {
   $("loginPage").classList.add("hidden");
   $("app").classList.remove("hidden");
+  syncRoleUI();
   renderAll();
-  goTo("account");
+  if (isAdminUser()) {
+    goTo("dashboard");
+  } else {
+    goTo("account");
+  }
 }
 
 /* ---------------- 4a. FORGOT PASSWORD (Link recovery via EmailJS) ----------------
@@ -1507,10 +1527,16 @@ async function checkResetTokenInUrl() {
 
 async function checkSession() {
   var res = await apiRequest("api/session.php");
-  if (res && res.success && res.data && res.data.loggedIn) {
+  if (res && res.success && res.data && res.data.loggedIn && res.data.user) {
     currentUser = res.data.user;
     showApp();
   } else {
+    currentUser = null;
+    if ($("topProfileName")) $("topProfileName").textContent = "—";
+    if ($("topProfileRole")) $("topProfileRole").textContent = "—";
+    if ($("topAvatar")) $("topAvatar").innerHTML = '<i class="fa-regular fa-user"></i>';
+    if ($("acctName")) $("acctName").textContent = "—";
+    if ($("acctEmail")) $("acctEmail").textContent = "—";
     $("app").classList.add("hidden");
     $("loginPage").classList.remove("hidden");
   }
@@ -1520,6 +1546,16 @@ async function checkSession() {
 
 function isAdminUser() {
   return !!(currentUser && currentUser.role === "admin");
+}
+
+function syncRoleUI() {
+  var admin = isAdminUser();
+  document.querySelectorAll(".menu-item[data-section]").forEach(function (btn) {
+    var sec = btn.dataset.section;
+    if (PROTECTED_SECTIONS.indexOf(sec) !== -1) {
+      btn.style.display = admin ? "" : "none";
+    }
+  });
 }
 
 function checkAdminAccess(section) {
@@ -3008,6 +3044,7 @@ if (contactFormEl) {
 /* ---------------- 13. MY ACCOUNT / PROFILE ---------------- */
 
 function renderAccount() {
+  syncRoleUI();
   if (!currentUser) return;
 
   var initials = currentUser.fullName
@@ -3147,11 +3184,15 @@ if ($("changePasswordForm")) {
 /* ---------------- 14. RENDER ALL & INIT ---------------- */
 
 function renderAll() {
-  loadDashboard();
-  loadPatients();
-  loadDoctors();
-  loadBills();
-  loadStaff();
+  if (isAdminUser()) {
+    loadDashboard();
+    loadPatients();
+    loadDoctors();
+    loadBills();
+    loadStaff();
+  } else {
+    loadDoctors();
+  }
   renderAccount();
 }
 

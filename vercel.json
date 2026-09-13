@@ -1,0 +1,45 @@
+﻿{
+  "version": 2,
+  "functions": {
+    "minorproject/api/*.php": {
+      "runtime": "vercel-php@0.7.3"
+    },
+    "minorproject/*.php": {
+      "runtime": "vercel-php@0.7.3"
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/minorproject/api/$1",
+      "headers": {
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache"
+      }
+    },
+    {
+      "src": "/minorproject/api/(.*)",
+      "dest": "/minorproject/api/$1",
+      "headers": {
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache"
+      }
+    },
+    {
+      "src": "/",
+      "dest": "/minorproject/s1.html"
+    },
+    {
+      "src": "/minorproject",
+      "dest": "/minorproject/s1.html"
+    },
+    {
+      "src": "/minorproject/",
+      "dest": "/minorproject/s1.html"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/minorproject/$1"
+    }
+  ]
+}

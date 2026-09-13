@@ -18,29 +18,55 @@ if ($method === 'GET') {
     }
 
     $currentUser = getCurrentUser();
-    $db = getDBConnection();
-    $stmt = $db->prepare("SELECT id, username, full_name, email, age, role, photo, created_at, last_login FROM users WHERE id = :id LIMIT 1");
-    $stmt->execute([':id' => $currentUser['id']]);
-    $freshUser = $stmt->fetch();
-
-    if ($freshUser) {
-        $_SESSION['user'] = [
-            'id'        => (int)$freshUser['id'],
-            'username'  => $freshUser['username'],
-            'fullName'  => $freshUser['full_name'],
-            'email'     => $freshUser['email'],
-            'age'       => $freshUser['age'] !== null ? (int)$freshUser['age'] : null,
-            'role'      => $freshUser['role'],
-            'photo'     => $freshUser['photo'],
-            'createdAt' => $freshUser['created_at'],
-            'lastLogin' => $freshUser['last_login'],
-        ];
+    if (!$currentUser || empty($currentUser['id'])) {
+        clearAuthCookie();
+        jsonResponse(true, 'No active session.', [
+            'loggedIn' => false,
+            'user'     => null
+        ]);
     }
 
-    jsonResponse(true, 'Active session found.', [
-        'loggedIn' => true,
-        'user'     => $_SESSION['user']
-    ]);
+    try {
+        $db = getDBConnection(true);
+        $stmt = $db->prepare("SELECT id, username, full_name, email, age, role, photo, created_at, last_login FROM users WHERE id = :id LIMIT 1");
+        $stmt->execute([':id' => $currentUser['id']]);
+        $freshUser = $stmt->fetch();
+
+        if ($freshUser) {
+            $userPayload = [
+                'id'        => (int)$freshUser['id'],
+                'username'  => $freshUser['username'] ?? '',
+                'fullName'  => $freshUser['full_name'] ?? '',
+                'email'     => $freshUser['email'],
+                'age'       => $freshUser['age'] !== null ? (int)$freshUser['age'] : null,
+                'role'      => $freshUser['role'],
+                'photo'     => $freshUser['photo'],
+                'createdAt' => $freshUser['created_at'],
+                'lastLogin' => $freshUser['last_login'],
+            ];
+            $_SESSION['user'] = $userPayload;
+            setAuthCookie(createSignedToken($userPayload));
+
+            jsonResponse(true, 'Active session found.', [
+                'loggedIn' => true,
+                'user'     => $userPayload
+            ]);
+        } else {
+            // User no longer exists in DB
+            clearAuthCookie();
+            $_SESSION = [];
+            jsonResponse(true, 'No active session.', [
+                'loggedIn' => false,
+                'user'     => null
+            ]);
+        }
+    } catch (Exception $e) {
+        // Fall back to verified token data if DB is temporarily unreachable
+        jsonResponse(true, 'Active session found.', [
+            'loggedIn' => true,
+            'user'     => $currentUser
+        ]);
+    }
 }
 
 // Update profile photo or password
