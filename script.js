@@ -731,8 +731,7 @@ var titles = {
 var PROTECTED_SECTIONS = [
   "dashboard",
   "patients",
-  "billing",
-  "staff"
+  "billing"
 ];
 
 var FEE_POOL = [
@@ -1083,6 +1082,24 @@ $("togglePassword").onclick = function () {
     (isText ? "fa-eye" : "fa-eye-slash") +
     '"></i>';
 };
+
+function wireSignupPasswordToggle(toggleId, inputId) {
+  var toggleBtn = $(toggleId);
+  var input = $(inputId);
+  if (!toggleBtn || !input) return;
+
+  toggleBtn.onclick = function () {
+    var isText = input.type === "text";
+    input.type = isText ? "password" : "text";
+    toggleBtn.innerHTML =
+      '<i class="fa-regular ' +
+      (isText ? "fa-eye" : "fa-eye-slash") +
+      '"></i>';
+  };
+}
+
+wireSignupPasswordToggle("toggleSuPassword", "suPassword");
+wireSignupPasswordToggle("toggleSuConfirmPassword", "suConfirmPassword");
 
 $("loginForm").onsubmit = async function (e) {
   e.preventDefault();
