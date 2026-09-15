@@ -856,6 +856,7 @@ function badge(status) {
     "On Leave": "amber",
     "Inactive": "grey",
     "Scheduled": "blue",
+    "Confirmed": "blue",
     "Completed": "green",
     "Cancelled": "red",
     "Paid": "green",
@@ -1596,10 +1597,15 @@ function checkAdminAccess(section) {
   return false;
 }
 
+// Name of the section currently on screen, so background refreshes know what to reload.
+var currentSection = "dashboard";
+
 function goTo(section) {
   if (!checkAdminAccess(section)) {
     return false;
   }
+
+  currentSection = section;
 
   document.querySelectorAll(".section").forEach(function (s) {
     s.classList.remove("active");
@@ -1815,26 +1821,33 @@ async function loadDashboard() {
   );
 }
 
-// Renders an inline status control for a Today's Appointments row. Scheduled/Completed
-// are the two states the admin can actively toggle between; any other status (e.g.
-// Cancelled) is shown as a plain read-only badge since it's outside this control's scope.
-function apptStatusControl(id, status) {
-  if (status !== "Scheduled" && status !== "Completed") {
-    return badge(status);
-  }
+var APPT_STATUSES = ["Pending", "Confirmed", "Completed", "Cancelled"];
 
-  var colorClass = status === "Completed" ? "status-completed" : "status-scheduled";
+function statusSelectClass(status) {
+  if (status === "Completed") return "status-completed";
+  if (status === "Cancelled") return "status-cancelled";
+  if (status === "Pending") return "status-pending";
+  return "status-scheduled";
+}
+
+// Admin/staff status control. The appointment status is governed exclusively here —
+// patients can only reschedule or cancel, never set a status directly.
+function apptStatusControl(id, status) {
+  if (!isStaffOrAdmin()) return badge(status);
+
+  var options = APPT_STATUSES.map(function (s) {
+    return '<option value="' + s + '"' + (status === s ? " selected" : "") + ">" + s + "</option>";
+  }).join("");
 
   return (
     '<select class="status-select ' +
-    colorClass +
+    statusSelectClass(status) +
     '" data-appt-id="' +
     id +
     '" data-prev-status="' +
     status +
     '" onchange="updateApptStatus(this)">' +
-    '<option value="Scheduled"' + (status === "Scheduled" ? " selected" : "") + '>Scheduled</option>' +
-    '<option value="Completed"' + (status === "Completed" ? " selected" : "") + '>Completed</option>' +
+    options +
     "</select>"
   );
 }
@@ -1844,7 +1857,7 @@ function apptStatusControl(id, status) {
 async function updateApptStatus(selectEl) {
   var id = selectEl.dataset.apptId;
   var newStatus = selectEl.value;
-  var previousStatus = selectEl.dataset.prevStatus || "Scheduled";
+  var previousStatus = selectEl.dataset.prevStatus || "Pending";
 
   selectEl.disabled = true;
   var res = await apiRequest("/api/appointments", "PUT", { id: id, status: newStatus });
@@ -1852,16 +1865,24 @@ async function updateApptStatus(selectEl) {
 
   if (res && res.success) {
     selectEl.dataset.prevStatus = newStatus;
-    selectEl.classList.toggle("status-completed", newStatus === "Completed");
+    selectEl.className = "status-select " + statusSelectClass(newStatus);
 
     var item = (dashboardStats.todayAppointmentsList || []).find(function (a) { return a.id === id; });
     if (item) item.status = newStatus;
 
     var allItem = (allAppointments || []).find(function (a) { return a.id === id; });
-    if (allItem) allItem.status = newStatus;
+    if (allItem) {
+      allItem.status = newStatus;
+      allItem.completed_at = newStatus === "Completed" ? new Date().toISOString() : null;
+    }
 
-    toast("Appointment " + id + " marked as " + newStatus);
+    toast(
+      newStatus === "Completed"
+        ? "Appointment " + id + " completed — visible to the patient for 12 more hours"
+        : "Appointment " + id + " marked as " + newStatus
+    );
     loadDashboard();
+    if (currentSection === "appointments") loadAppointmentsSection();
   } else {
     selectEl.value = previousStatus;
     toast(res ? res.message : "Failed to update appointment status", "error");
@@ -2478,11 +2499,13 @@ function loadAppointmentsSection() {
   if (staffAdmin) loadAllAppointments();
 
   loadMyAppointments();
+  startMyApptTimer();
 }
 
 /* ---- My Appointments (patient-facing cards) ---- */
 
 var myAppointments = [];
+var myApptFetchedAt = 0;
 
 async function loadMyAppointments() {
   var wrap = $("myApptCards");
@@ -2502,6 +2525,7 @@ async function loadMyAppointments() {
   }
 
   myAppointments = res.data || [];
+  myApptFetchedAt = Date.now();
   renderMyAppointments();
 }
 
@@ -2509,17 +2533,86 @@ function renderMyAppointments() {
   var wrap = $("myApptCards");
   if (!wrap) return;
 
-  wrap.innerHTML = myAppointments.length
-    ? myAppointments.map(apptCardHtml).join("")
+  // The backend already excludes expired records, but re-checking here means a card
+  // vanishes the moment its 12 hours are up rather than on the next page load.
+  var visible = myAppointments.filter(function (a) {
+    return a.status !== "Completed" || archiveMsLeft(a) > 0;
+  });
+
+  wrap.innerHTML = visible.length
+    ? visible.map(apptCardHtml).join("")
     : '<p class="muted" style="padding:16px 4px">You haven\'t booked any appointments yet.</p>';
+}
+
+// Re-renders the cards every minute so the archive countdown stays accurate and the
+// admin's latest status change shows up without the patient refreshing the page.
+var myApptTimer = null;
+
+function startMyApptTimer() {
+  if (myApptTimer) clearInterval(myApptTimer);
+  myApptTimer = setInterval(function () {
+    if (currentSection !== "appointments" || !currentUser) return;
+    loadMyAppointments();
+  }, 60000);
 }
 
 function dateOnly(v) {
   return String(v || "").slice(0, 10);
 }
 
+// A patient may only act on an appointment the admin hasn't finalised yet.
+function canPatientAct(status) {
+  return status === "Pending" || status === "Confirmed";
+}
+
+// Milliseconds left in the 12-hour window that starts when an admin marks an
+// appointment Completed. Returns 0 once the window has closed.
+var ARCHIVE_WINDOW_MS = 12 * 60 * 60 * 1000;
+
+function archiveMsLeft(a) {
+  if (a.status !== "Completed") return 0;
+
+  // Preferred path: the database computed the remaining seconds against its own
+  // clock, so a browser/server timezone mismatch can't skew the countdown. We only
+  // subtract the time elapsed locally since the list was fetched.
+  if (a.archiveSecondsLeft !== undefined && a.archiveSecondsLeft !== null) {
+    var elapsed = Date.now() - (myApptFetchedAt || Date.now());
+    return Math.max(0, Number(a.archiveSecondsLeft) * 1000 - elapsed);
+  }
+
+  // Fallback for rows fetched without that field (e.g. the admin list).
+  if (!a.completed_at) return 0;
+  var completedAt = new Date(String(a.completed_at).replace(" ", "T")).getTime();
+  if (!completedAt) return 0;
+  return Math.max(0, completedAt + ARCHIVE_WINDOW_MS - Date.now());
+}
+
+function archiveNotice(a) {
+  var left = archiveMsLeft(a);
+  if (!left) return "";
+
+  var hours = Math.floor(left / 3600000);
+  var mins = Math.floor((left % 3600000) / 60000);
+  var remaining = hours > 0 ? hours + "h " + mins + "m" : mins + "m";
+
+  return (
+    '<div class="appt-archive-note"><i class="fa-regular fa-hourglass-half"></i> ' +
+    "This record will be archived in " + remaining +
+    ". Your hospital records are retained permanently.</div>"
+  );
+}
+
+function detailRow(icon, label, value) {
+  return (
+    '<div><i class="fa-solid ' + icon + '"></i> ' +
+    '<span class="appt-label">' + label + ":</span> " +
+    esc(value === undefined || value === null || value === "" ? "—" : value) +
+    "</div>"
+  );
+}
+
 function apptCardHtml(a) {
-  var canAct = a.status === "Scheduled";
+  var canAct = canPatientAct(a.status);
 
   return (
     '<div class="appt-card">' +
@@ -2528,11 +2621,17 @@ function apptCardHtml(a) {
     badge(a.status) +
     "</div>" +
     '<div class="appt-card-body">' +
-    '<div><i class="fa-regular fa-calendar"></i> ' + esc(dateOnly(a.date)) + "</div>" +
-    '<div><i class="fa-regular fa-clock"></i> ' + esc(a.time) + "</div>" +
-    '<div><i class="fa-solid fa-user-doctor"></i> ' + esc(a.doctor || "—") + "</div>" +
-    '<div><i class="fa-solid fa-notes-medical"></i> ' + esc(a.problem || a.notes || "—") + "</div>" +
+    detailRow("fa-user", "Name", a.patient) +
+    detailRow("fa-cake-candles", "Age", a.age) +
+    detailRow("fa-venus-mars", "Gender", a.gender) +
+    detailRow("fa-notes-medical", "Problem", a.problem || a.notes) +
+    detailRow("fa-user-doctor", "Doctor", a.doctor) +
+    detailRow("fa-clock", "Time Slot", a.time) +
+    detailRow("fa-calendar-day", "Preferred Date", dateOnly(a.date)) +
+    detailRow("fa-envelope", "Email", a.email) +
+    detailRow("fa-money-bill-wave", "Payment", a.paymentMode) +
     "</div>" +
+    archiveNotice(a) +
     (canAct
       ? '<div class="appt-card-actions">' +
         '<button class="btn btn-sm btn-outline" onclick="rescheduleAppointment(\'' + a.id + '\')">' +
@@ -2540,7 +2639,7 @@ function apptCardHtml(a) {
         '<button class="btn btn-sm btn-danger" onclick="cancelAppointment(\'' + a.id + '\')">' +
         '<i class="fa-regular fa-circle-xmark"></i> Cancel</button>' +
         "</div>"
-      : "") +
+      : '<p class="muted appt-card-locked">Status is managed by the hospital administration.</p>') +
     "</div>"
   );
 }
@@ -2574,14 +2673,14 @@ async function rescheduleAppointment(id) {
     "Reschedule Appointment " + id,
     '<form id="rescheduleForm"><div class="form-grid">' +
 
-    '<div><label>New Date *</label>' +
+    '<div><label>New Preferred Date *</label>' +
     '<input id="rsDate" type="date" min="' + today + '" value="' +
     (dateOnly(appt.date) >= today ? dateOnly(appt.date) : today) +
     '" required></div>' +
 
-    '<div><label>New Time Slot *</label>' +
-    '<select id="rsSlot" required>' +
-    '<option value="">Select a time...</option>' +
+    '<div><label>Time Slot</label>' +
+    '<select id="rsSlot">' +
+    '<option value="">Keep current slot (' + esc(appt.time) + ")</option>" +
     slotOpts +
     "</select></div>" +
 
@@ -2598,8 +2697,7 @@ async function rescheduleAppointment(id) {
     var newDate = $("rsDate").value;
     var newSlot = $("rsSlot").value;
 
-    if (!newDate) return toast("Please select a new date", "error");
-    if (!newSlot) return toast("Please select a new time slot", "error");
+    if (!newDate) return toast("Please select a new preferred date", "error");
 
     var res = await apiRequest("/api/appointments", "PUT", {
       id: id,
@@ -2610,7 +2708,7 @@ async function rescheduleAppointment(id) {
 
     if (res && res.success) {
       closeModal();
-      toast("Appointment " + id + " rescheduled to " + newDate + ", " + newSlot);
+      toast("Appointment " + id + " rescheduled to " + newDate + ", " + (newSlot || appt.time));
       loadMyAppointments();
       if (isStaffOrAdmin()) loadAllAppointments();
     } else {
@@ -2641,16 +2739,41 @@ async function loadAllAppointments() {
         return (
           "<tr><td>" + a.id + "</td><td>" + esc(a.patient) + "</td><td>" +
           esc(a.doctor || "—") + "</td><td>" + esc(dateOnly(a.date)) + "</td><td>" + esc(a.time) +
-          "</td><td>" + apptStatusControl(a.id, a.status) + "</td>" +
+          "</td><td>" + apptStatusControl(a.id, a.status) + adminVisibilityTag(a) + "</td>" +
           '<td><div class="row-actions">' +
-          (a.status !== "Cancelled"
-            ? '<button class="mini del" onclick="cancelAppointment(\'' + a.id + '\')" title="Cancel">' +
-              '<i class="fa-regular fa-circle-xmark"></i></button>'
-            : "—") +
+          (a.status === "Cancelled"
+            ? (a.cleared_at
+                ? "—"
+                : '<button class="mini" onclick="clearFromPatientView(\'' + a.id + '\')" title="Clear from patient view">' +
+                  '<i class="fa-regular fa-eye-slash"></i></button>')
+            : canPatientAct(a.status)
+              ? '<button class="mini del" onclick="cancelAppointment(\'' + a.id + '\')" title="Cancel">' +
+                '<i class="fa-regular fa-circle-xmark"></i></button>'
+              : "—") +
           "</div></td></tr>"
         );
       }).join("")
     : '<tr><td colspan="7" class="empty">No appointments found</td></tr>';
+}
+
+// Small marker on the admin table showing that a record is no longer on the
+// patient's screen. The row itself remains here and in the database permanently.
+function adminVisibilityTag(a) {
+  if (a.cleared_at) return ' <span class="appt-archived-tag">cleared</span>';
+  if (a.status === "Completed" && !archiveMsLeft(a)) return ' <span class="appt-archived-tag">archived</span>';
+  return "";
+}
+
+async function clearFromPatientView(id) {
+  if (!confirm("Remove cancelled appointment " + id + " from the patient's view?\n\nThe record stays in the database and on this admin list.")) return;
+
+  var res = await apiRequest("/api/appointments", "PUT", { id: id, action: "clear" });
+  if (res && res.success) {
+    toast("Appointment " + id + " cleared from the patient view");
+    loadAllAppointments();
+  } else {
+    toast(res ? res.message : "Couldn't clear this appointment", "error");
+  }
 }
 
 if ($("apptSearch")) $("apptSearch").oninput = loadAllAppointments;
@@ -2795,7 +2918,7 @@ async function bookAppointmentForm() {
       date: date,
       time: slot,
       paymentMode: "Cash Only",
-      status: "Scheduled",
+      status: "Pending",
       notes: PROBLEM_SPEC_MAP[problemIdx].label
     };
 

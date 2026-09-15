@@ -89,11 +89,18 @@ CREATE TABLE IF NOT EXISTS `appointments` (
   `time_slot` VARCHAR(50) NOT NULL,
   `payment_mode` VARCHAR(50) NOT NULL DEFAULT 'Cash Only',
   `notes` TEXT NULL,
-  `status` ENUM('Scheduled', 'Completed', 'Cancelled') NOT NULL DEFAULT 'Scheduled',
+  `status` ENUM('Pending', 'Confirmed', 'Completed', 'Cancelled') NOT NULL DEFAULT 'Pending',
+  -- Set when an admin marks the appointment Completed. The patient keeps seeing the
+  -- appointment for 12 hours from this moment, after which it disappears from their
+  -- view only -- the row is never deleted and stays visible to admins permanently.
+  `completed_at` DATETIME NULL,
+  -- Set when an admin clears a cancelled appointment from the patient's view.
+  `cleared_at` DATETIME NULL,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX `idx_appt_date` (`appointment_date`),
   INDEX `idx_appt_status` (`status`),
   INDEX `idx_appt_user` (`user_id`),
+  INDEX `idx_appt_completed` (`completed_at`),
   CONSTRAINT `fk_appt_patient` FOREIGN KEY (`patient_id`) REFERENCES `patients` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_appt_doctor` FOREIGN KEY (`doctor_id`) REFERENCES `doctors` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_appt_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
@@ -226,11 +233,15 @@ ON DUPLICATE KEY UPDATE `full_name` = VALUES(`full_name`);
 -- --------------------------------------------------------
 -- Seed Appointments
 -- --------------------------------------------------------
-INSERT INTO `appointments` (`id`, `patient_id`, `doctor_id`, `full_name`, `age`, `gender`, `email`, `problem`, `doctor_name`, `department`, `fee`, `appointment_date`, `time_slot`, `payment_mode`, `notes`, `status`) VALUES
-('A001', 'P001', 'D001', 'Ravi Kumar', 34, 'Male', 'ravi.kumar@example.com', 'Chest pain / Heart issues', 'Dr. Anil Sharma', 'Cardiology', 900.00, CURDATE(), '10:00 - 11:00', 'Cash Only', 'Follow-up ECG', 'Scheduled'),
-('A002', 'P003', 'D002', 'Arjun Das', 9, 'Male', 'arjun.parent@example.com', 'General checkup / Fever / Cold', 'Dr. Priya Nair', 'Pediatrics', 600.00, CURDATE(), '11:00 - 12:00', 'Cash Only', 'Fever check', 'Completed'),
-('A003', 'P002', 'D004', 'Meena Joshi', 28, 'Female', 'meena.joshi@example.com', 'Skin rash / Allergy', 'Dr. Sneha Iyer', 'Dermatology', 700.00, CURDATE(), '12:00 - 13:00', 'Cash Only', 'Allergy review', 'Scheduled'),
-('A004', 'P004', 'D003', 'Sunita Rao', 52, 'Female', 'sunita.rao@example.com', 'Bone / Joint / Fracture pain', 'Dr. Rakesh Verma', 'Orthopedics', 800.00, DATE_SUB(CURDATE(), INTERVAL 3 DAY), '09:00 - 10:00', 'Cash Only', 'X-ray report', 'Cancelled')
+INSERT INTO `appointments` (`id`, `patient_id`, `doctor_id`, `full_name`, `age`, `gender`, `email`, `problem`, `doctor_name`, `department`, `fee`, `appointment_date`, `time_slot`, `payment_mode`, `notes`, `status`, `completed_at`) VALUES
+('A001', 'P001', 'D001', 'Ravi Kumar', 34, 'Male', 'ravi.kumar@example.com', 'Chest pain / Heart issues', 'Dr. Anil Sharma', 'Cardiology', 900.00, CURDATE(), '10:00 - 11:00', 'Cash Only', 'Follow-up ECG', 'Confirmed', NULL),
+-- Completed 2 hours ago: still inside the 12-hour window, so the patient can see it.
+('A002', 'P003', 'D002', 'Arjun Das', 9, 'Male', 'arjun.parent@example.com', 'General checkup / Fever / Cold', 'Dr. Priya Nair', 'Pediatrics', 600.00, CURDATE(), '11:00 - 12:00', 'Cash Only', 'Fever check', 'Completed', DATE_SUB(NOW(), INTERVAL 2 HOUR)),
+('A003', 'P002', 'D004', 'Meena Joshi', 28, 'Female', 'meena.joshi@example.com', 'Skin rash / Allergy', 'Dr. Sneha Iyer', 'Dermatology', 700.00, CURDATE(), '12:00 - 13:00', 'Cash Only', 'Allergy review', 'Pending', NULL),
+('A004', 'P004', 'D003', 'Sunita Rao', 52, 'Female', 'sunita.rao@example.com', 'Bone / Joint / Fracture pain', 'Dr. Rakesh Verma', 'Orthopedics', 800.00, DATE_SUB(CURDATE(), INTERVAL 3 DAY), '09:00 - 10:00', 'Cash Only', 'X-ray report', 'Cancelled', NULL),
+-- Completed 20 hours ago: past the 12-hour window, so it is hidden from the patient
+-- but still fully present here and on the admin list.
+('A005', 'P001', 'D001', 'Ravi Kumar', 34, 'Male', 'ravi.kumar@example.com', 'Chest pain / Heart issues', 'Dr. Anil Sharma', 'Cardiology', 900.00, DATE_SUB(CURDATE(), INTERVAL 1 DAY), '10:00 - 11:00', 'Cash Only', 'Routine ECG', 'Completed', DATE_SUB(NOW(), INTERVAL 20 HOUR))
 ON DUPLICATE KEY UPDATE `full_name` = VALUES(`full_name`);
 
 -- --------------------------------------------------------
