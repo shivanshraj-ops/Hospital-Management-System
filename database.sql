@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS `appointments` (
   `id` VARCHAR(20) PRIMARY KEY,
   `patient_id` VARCHAR(20) NULL,
   `doctor_id` VARCHAR(20) NULL,
+  `user_id` INT NULL,
   `full_name` VARCHAR(100) NOT NULL,
   `age` INT NOT NULL,
   `gender` ENUM('Male', 'Female', 'Other') NOT NULL DEFAULT 'Male',
@@ -92,8 +93,10 @@ CREATE TABLE IF NOT EXISTS `appointments` (
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX `idx_appt_date` (`appointment_date`),
   INDEX `idx_appt_status` (`status`),
+  INDEX `idx_appt_user` (`user_id`),
   CONSTRAINT `fk_appt_patient` FOREIGN KEY (`patient_id`) REFERENCES `patients` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
-  CONSTRAINT `fk_appt_doctor` FOREIGN KEY (`doctor_id`) REFERENCES `doctors` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+  CONSTRAINT `fk_appt_doctor` FOREIGN KEY (`doctor_id`) REFERENCES `doctors` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_appt_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -146,6 +149,26 @@ CREATE TABLE IF NOT EXISTS `contacts` (
   `subject` VARCHAR(200) NOT NULL,
   `message` TEXT NOT NULL,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- Table: notifications
+-- --------------------------------------------------------
+-- Hosted MySQL migration: intentionally skipped: DROP TABLE IF EXISTS `notifications`;
+CREATE TABLE IF NOT EXISTS `notifications` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `type` ENUM('reschedule', 'cancel') NOT NULL,
+  `appointment_id` VARCHAR(20) NULL,
+  `patient_name` VARCHAR(100) NULL,
+  `message` TEXT NOT NULL,
+  `old_date` DATE NULL,
+  `old_time` VARCHAR(50) NULL,
+  `new_date` DATE NULL,
+  `new_time` VARCHAR(50) NULL,
+  `is_read` TINYINT(1) NOT NULL DEFAULT 0,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_notif_read` (`is_read`),
+  CONSTRAINT `fk_notif_appt` FOREIGN KEY (`appointment_id`) REFERENCES `appointments` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------

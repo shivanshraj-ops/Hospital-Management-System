@@ -731,8 +731,7 @@ var titles = {
 var PROTECTED_SECTIONS = [
   "dashboard",
   "patients",
-  "billing",
-  "staff"
+  "billing"
 ];
 
 var FEE_POOL = [
@@ -1084,6 +1083,24 @@ $("togglePassword").onclick = function () {
     '"></i>';
 };
 
+function wireSignupPasswordToggle(toggleId, inputId) {
+  var toggleBtn = $(toggleId);
+  var input = $(inputId);
+  if (!toggleBtn || !input) return;
+
+  toggleBtn.onclick = function () {
+    var isText = input.type === "text";
+    input.type = isText ? "password" : "text";
+    toggleBtn.innerHTML =
+      '<i class="fa-regular ' +
+      (isText ? "fa-eye" : "fa-eye-slash") +
+      '"></i>';
+  };
+}
+
+wireSignupPasswordToggle("toggleSuPassword", "suPassword");
+wireSignupPasswordToggle("toggleSuConfirmPassword", "suConfirmPassword");
+
 $("loginForm").onsubmit = async function (e) {
   e.preventDefault();
 
@@ -1308,6 +1325,11 @@ $("logoutBtn").onclick = async function () {
     await apiRequest("/api/logout", "POST");
     currentUser = null;
 
+    if (notifPollTimer) {
+      clearInterval(notifPollTimer);
+      notifPollTimer = null;
+    }
+
     try {
       localStorage.clear();
       sessionStorage.clear();
@@ -1340,6 +1362,7 @@ function showApp() {
   } else {
     goTo("account");
   }
+  if (isStaffOrAdmin()) startNotificationPolling();
 }
 
 /* ---------------- 4a. FORGOT PASSWORD (Link recovery via EmailJS) ----------------
@@ -1610,6 +1633,7 @@ function goTo(section) {
   if (section === "billing") loadBills();
   if (section === "staff") loadStaff();
   if (section === "account") renderAccount();
+  if (section === "appointments") loadAppointmentsSection();
 
   return true;
 }
@@ -1656,25 +1680,85 @@ $("globalSearch").oninput = function () {
   loadDoctors();
 };
 
-$("notifBtn").onclick = function () {
+/* ---- Notification Center (admin/staff): reschedule & cancellation activity ---- */
+
+var notifItems = [];
+var notifUnread = 0;
+var notifPollTimer = null;
+
+function startNotificationPolling() {
+  refreshNotifications();
+  if (notifPollTimer) clearInterval(notifPollTimer);
+  notifPollTimer = setInterval(refreshNotifications, 20000);
+}
+
+async function refreshNotifications() {
+  if (!isStaffOrAdmin()) return;
+
+  var res = await apiRequest("/api/notifications");
+  if (!res || !res.success) return;
+
+  notifItems = (res.data && res.data.items) || [];
+  notifUnread = (res.data && res.data.unread) || 0;
+  updateNotifDot();
+}
+
+function updateNotifDot() {
+  var dot = $("notifDot");
+  if (!dot) return;
+  dot.classList.toggle("hidden", notifUnread === 0);
+}
+
+async function markAllNotificationsRead() {
+  var res = await apiRequest("/api/notifications", "PUT", { markAllRead: true });
+  if (res && res.success) {
+    notifItems.forEach(function (n) { n.is_read = 1; });
+    notifUnread = 0;
+    updateNotifDot();
+    renderNotificationsModal();
+  }
+}
+
+function renderNotificationsModal() {
   var pending = dashboardStats.pendingInvoices || 0;
   var todays = dashboardStats.todayAppointments || 0;
   var onLeave = dashboardStats.doctorsOnLeave || 0;
 
+  var summary =
+    '<ul style="line-height:2;list-style:none">' +
+    '<li><i class="fa-regular fa-calendar-check"></i> ' + todays + ' appointment(s) scheduled today</li>' +
+    '<li><i class="fa-solid fa-file-invoice-dollar"></i> ' + pending + ' invoice(s) pending payment</li>' +
+    '<li><i class="fa-solid fa-user-doctor"></i> ' + onLeave + ' doctor(s) on leave</li>' +
+    "</ul>";
+
+  var feed = notifItems.length
+    ? notifItems.map(function (n) {
+        return (
+          '<div class="notif-item' + (Number(n.is_read) ? "" : " unread") + '">' +
+          '<i class="fa-solid ' + (n.type === "cancel" ? "fa-calendar-xmark" : "fa-calendar-days") + '"></i>' +
+          "<div><p>" + esc(n.message) + "</p>" +
+          '<span class="muted">' + formatAccountDate(n.created_at, true) + "</span></div>" +
+          "</div>"
+        );
+      }).join("")
+    : '<p class="muted" style="padding:10px 2px">No reschedule or cancellation activity yet.</p>';
+
   openModal(
     "Notifications",
-    '<ul style="line-height:2;list-style:none">' +
-    '<li><i class="fa-regular fa-calendar-check"></i> ' +
-    todays +
-    ' appointment(s) scheduled today</li>' +
-    '<li><i class="fa-solid fa-file-invoice-dollar"></i> ' +
-    pending +
-    ' invoice(s) pending payment</li>' +
-    '<li><i class="fa-solid fa-user-doctor"></i> ' +
-    onLeave +
-    ' doctor(s) on leave</li>' +
-    "</ul>"
+    summary +
+    '<div class="notif-feed-head">' +
+    "<h4>Recent Activity</h4>" +
+    (notifUnread
+      ? '<button class="btn btn-sm btn-outline" onclick="markAllNotificationsRead()">Mark all read</button>'
+      : "") +
+    "</div>" +
+    '<div class="notif-feed">' + feed + "</div>"
   );
+}
+
+$("notifBtn").onclick = async function () {
+  await refreshNotifications();
+  renderNotificationsModal();
 };
 
 /* ---------------- 6. DASHBOARD & CHARTS ---------------- */
@@ -1767,8 +1851,14 @@ async function updateApptStatus(selectEl) {
   selectEl.disabled = false;
 
   if (res && res.success) {
+    selectEl.dataset.prevStatus = newStatus;
+    selectEl.classList.toggle("status-completed", newStatus === "Completed");
+
     var item = (dashboardStats.todayAppointmentsList || []).find(function (a) { return a.id === id; });
     if (item) item.status = newStatus;
+
+    var allItem = (allAppointments || []).find(function (a) { return a.id === id; });
+    if (allItem) allItem.status = newStatus;
 
     toast("Appointment " + id + " marked as " + newStatus);
     loadDashboard();
@@ -2374,6 +2464,198 @@ if ($("addApptBtn")) {
   };
 }
 
+function isStaffOrAdmin() {
+  return !!(currentUser && (currentUser.role === "admin" || currentUser.role === "staff"));
+}
+
+// Entry point called whenever the Appointments section is opened: refreshes the
+// logged-in user's own bookings, and the full admin table when applicable.
+function loadAppointmentsSection() {
+  var adminWrap = $("adminApptWrap");
+  var staffAdmin = isStaffOrAdmin();
+
+  if (adminWrap) adminWrap.style.display = staffAdmin ? "" : "none";
+  if (staffAdmin) loadAllAppointments();
+
+  loadMyAppointments();
+}
+
+/* ---- My Appointments (patient-facing cards) ---- */
+
+var myAppointments = [];
+
+async function loadMyAppointments() {
+  var wrap = $("myApptCards");
+  if (!wrap) return;
+
+  if (!currentUser) {
+    wrap.innerHTML = '<p class="muted" style="padding:16px 4px">Log in to see your booked appointments here.</p>';
+    return;
+  }
+
+  wrap.innerHTML = '<p class="muted" style="padding:16px 4px">Loading your appointments...</p>';
+
+  var res = await apiRequest("/api/appointments?mine=1");
+  if (!res || !res.success) {
+    wrap.innerHTML = '<p class="muted" style="padding:16px 4px">Couldn\'t load your appointments right now.</p>';
+    return;
+  }
+
+  myAppointments = res.data || [];
+  renderMyAppointments();
+}
+
+function renderMyAppointments() {
+  var wrap = $("myApptCards");
+  if (!wrap) return;
+
+  wrap.innerHTML = myAppointments.length
+    ? myAppointments.map(apptCardHtml).join("")
+    : '<p class="muted" style="padding:16px 4px">You haven\'t booked any appointments yet.</p>';
+}
+
+function dateOnly(v) {
+  return String(v || "").slice(0, 10);
+}
+
+function apptCardHtml(a) {
+  var canAct = a.status === "Scheduled";
+
+  return (
+    '<div class="appt-card">' +
+    '<div class="appt-card-top">' +
+    "<strong>" + esc(a.id) + "</strong>" +
+    badge(a.status) +
+    "</div>" +
+    '<div class="appt-card-body">' +
+    '<div><i class="fa-regular fa-calendar"></i> ' + esc(dateOnly(a.date)) + "</div>" +
+    '<div><i class="fa-regular fa-clock"></i> ' + esc(a.time) + "</div>" +
+    '<div><i class="fa-solid fa-user-doctor"></i> ' + esc(a.doctor || "—") + "</div>" +
+    '<div><i class="fa-solid fa-notes-medical"></i> ' + esc(a.problem || a.notes || "—") + "</div>" +
+    "</div>" +
+    (canAct
+      ? '<div class="appt-card-actions">' +
+        '<button class="btn btn-sm btn-outline" onclick="rescheduleAppointment(\'' + a.id + '\')">' +
+        '<i class="fa-regular fa-calendar-days"></i> Reschedule</button>' +
+        '<button class="btn btn-sm btn-danger" onclick="cancelAppointment(\'' + a.id + '\')">' +
+        '<i class="fa-regular fa-circle-xmark"></i> Cancel</button>' +
+        "</div>"
+      : "") +
+    "</div>"
+  );
+}
+
+async function cancelAppointment(id) {
+  if (!confirm("Cancel appointment " + id + "? This cannot be undone.")) return;
+
+  var res = await apiRequest("/api/appointments", "PUT", { id: id, action: "cancel" });
+  if (res && res.success) {
+    toast("Appointment " + id + " cancelled");
+    loadMyAppointments();
+    if (isStaffOrAdmin()) loadAllAppointments();
+  } else {
+    toast(res ? res.message : "Couldn't cancel this appointment", "error");
+  }
+}
+
+async function rescheduleAppointment(id) {
+  var appt = (myAppointments || []).concat(allAppointments || []).find(function (a) { return a.id === id; });
+  if (!appt) return;
+
+  if (!doctors.length) {
+    var docRes = await apiRequest("/api/doctors");
+    if (docRes && docRes.success) doctors = docRes.data || [];
+  }
+
+  var doc = doctors.find(function (d) { return d.name === appt.doctor; });
+  var slotOpts = doc ? slotOptionsForDoctor(doc) : '<option value="' + esc(appt.time) + '">' + esc(appt.time) + "</option>";
+
+  openModal(
+    "Reschedule Appointment " + id,
+    '<form id="rescheduleForm"><div class="form-grid">' +
+
+    '<div><label>New Date *</label>' +
+    '<input id="rsDate" type="date" min="' + today + '" value="' +
+    (dateOnly(appt.date) >= today ? dateOnly(appt.date) : today) +
+    '" required></div>' +
+
+    '<div><label>New Time Slot *</label>' +
+    '<select id="rsSlot" required>' +
+    '<option value="">Select a time...</option>' +
+    slotOpts +
+    "</select></div>" +
+
+    '</div><div class="modal-actions">' +
+    '<button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+    '<button class="btn btn-primary" type="submit">' +
+    '<i class="fa-regular fa-calendar-check"></i> Confirm Reschedule' +
+    "</button></div></form>"
+  );
+
+  $("rescheduleForm").onsubmit = async function (e) {
+    e.preventDefault();
+
+    var newDate = $("rsDate").value;
+    var newSlot = $("rsSlot").value;
+
+    if (!newDate) return toast("Please select a new date", "error");
+    if (!newSlot) return toast("Please select a new time slot", "error");
+
+    var res = await apiRequest("/api/appointments", "PUT", {
+      id: id,
+      action: "reschedule",
+      date: newDate,
+      time: newSlot
+    });
+
+    if (res && res.success) {
+      closeModal();
+      toast("Appointment " + id + " rescheduled to " + newDate + ", " + newSlot);
+      loadMyAppointments();
+      if (isStaffOrAdmin()) loadAllAppointments();
+    } else {
+      toast(res ? res.message : "Couldn't reschedule this appointment", "error");
+    }
+  };
+}
+
+/* ---- All Appointments (admin/staff management table) ---- */
+
+var allAppointments = [];
+
+async function loadAllAppointments() {
+  var tbody = $("adminApptTable");
+  if (!tbody) return;
+
+  var search = $("apptSearch") ? $("apptSearch").value.trim() : "";
+  var status = $("apptFilter") ? $("apptFilter").value : "";
+
+  var url = "/api/appointments?search=" + encodeURIComponent(search) + "&status=" + encodeURIComponent(status);
+  var res = await apiRequest(url);
+  if (!res || !res.success) return;
+
+  allAppointments = res.data || [];
+
+  tbody.innerHTML = allAppointments.length
+    ? allAppointments.map(function (a) {
+        return (
+          "<tr><td>" + a.id + "</td><td>" + esc(a.patient) + "</td><td>" +
+          esc(a.doctor || "—") + "</td><td>" + esc(dateOnly(a.date)) + "</td><td>" + esc(a.time) +
+          "</td><td>" + apptStatusControl(a.id, a.status) + "</td>" +
+          '<td><div class="row-actions">' +
+          (a.status !== "Cancelled"
+            ? '<button class="mini del" onclick="cancelAppointment(\'' + a.id + '\')" title="Cancel">' +
+              '<i class="fa-regular fa-circle-xmark"></i></button>'
+            : "—") +
+          "</div></td></tr>"
+        );
+      }).join("")
+    : '<tr><td colspan="7" class="empty">No appointments found</td></tr>';
+}
+
+if ($("apptSearch")) $("apptSearch").oninput = loadAllAppointments;
+if ($("apptFilter")) $("apptFilter").onchange = loadAllAppointments;
+
 async function bookAppointmentForm() {
   if (!doctors.length) {
     var docRes = await apiRequest("/api/doctors");
@@ -2521,6 +2803,8 @@ async function bookAppointmentForm() {
     if (res && res.success && res.data) {
       var savedAppt = res.data;
       loadDashboard();
+      loadMyAppointments();
+      if (isStaffOrAdmin()) loadAllAppointments();
       sendConfirmationEmail(savedAppt);
       showReceipt(savedAppt);
     } else {

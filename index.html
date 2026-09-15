@@ -113,6 +113,9 @@
                 <div class="field">
                     <i class="fa-solid fa-lock"></i>
                     <input type="password" id="suPassword" placeholder="••••••••" autocomplete="new-password" />
+                    <button type="button" class="toggle-eye" id="toggleSuPassword" aria-label="Show password">
+                        <i class="fa-regular fa-eye"></i>
+                    </button>
                 </div>
                 <small class="error" id="suPasswordError"></small>
 
@@ -120,6 +123,9 @@
                 <div class="field">
                     <i class="fa-solid fa-lock"></i>
                     <input type="password" id="suConfirmPassword" placeholder="••••••••" autocomplete="new-password" />
+                    <button type="button" class="toggle-eye" id="toggleSuConfirmPassword" aria-label="Show password">
+                        <i class="fa-regular fa-eye"></i>
+                    </button>
                 </div>
                 <small class="error" id="suConfirmPasswordError"></small>
 
@@ -206,7 +212,7 @@
 
                 <button class="icon-btn dashboard-only" id="notifBtn" aria-label="Notifications">
                     <i class="fa-regular fa-bell"></i>
-                    <span class="dot"></span>
+                    <span class="dot hidden" id="notifDot"></span>
                 </button>
 
                 <div class="profile">
@@ -442,6 +448,64 @@
                         </button>
                     </div>
 
+                    <!-- Admin/staff only: manage every appointment, toggle status -->
+                    <div class="card" id="adminApptWrap" style="display:none;">
+
+                        <div class="card-head">
+                            <h4><i class="fa-solid fa-list-check"></i> All Appointments</h4>
+                        </div>
+
+                        <div class="toolbar">
+
+                            <div class="search-box">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <input id="apptSearch" placeholder="Search patient / doctor / ID" />
+                            </div>
+
+                            <select id="apptFilter">
+                                <option value="">All Status</option>
+                                <option>Scheduled</option>
+                                <option>Completed</option>
+                                <option>Cancelled</option>
+                            </select>
+
+                        </div>
+
+                        <div class="table-wrap">
+
+                            <table>
+
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Patient</th>
+                                        <th>Doctor</th>
+                                        <th>Date</th>
+                                        <th>Time</th>
+                                        <th>Status</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody id="adminApptTable"></tbody>
+
+                            </table>
+
+                        </div>
+
+                    </div>
+
+                    <!-- My Appointments: the logged-in user's own bookings -->
+                    <div class="card">
+
+                        <div class="card-head">
+                            <h4><i class="fa-regular fa-calendar-days"></i> My Appointments</h4>
+                        </div>
+
+                        <div class="appt-cards" id="myApptCards"></div>
+
+                    </div>
+
                 </section>
 
                 <!-- BILLING -->
@@ -590,13 +654,13 @@
                                 </div>
                             </a>
 
-                            <div class="contact-item">
+                            <a class="contact-item" href="https://hospital-management-system-production-0476.up.railway.app" target="_blank" rel="noopener noreferrer">
                                 <i class="fa-solid fa-globe"></i>
                                 <div>
                                     <strong>Website</strong>
                                     <span>www.medicarehms.in</span>
                                 </div>
-                            </div>
+                            </a>
 
                             <div class="contact-item">
                                 <i class="fa-regular fa-clock"></i>

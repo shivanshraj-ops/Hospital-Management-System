@@ -30,6 +30,7 @@ const ROUTES = {
   'contacts': handlers.contacts,
   'dashboard': handlers.dashboard,
   'forgot-password': handlers.forgotPassword,
+  'notifications': handlers.notifications,
 };
 
 const MIME = {

@@ -1396,6 +1396,108 @@ tbody tr:hover {
     margin-bottom: 18px
 }
 
+/* ---------- My Appointments cards ---------- */
+
+.appt-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    padding: 16px
+}
+
+.appt-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    transition: transform .2s, box-shadow .2s
+}
+
+.appt-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow)
+}
+
+.appt-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px
+}
+
+.appt-card-top strong {
+    color: var(--navy);
+    font-size: 14px
+}
+
+.appt-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 12px
+}
+
+.appt-card-body i {
+    width: 16px;
+    color: var(--muted)
+}
+
+.appt-card-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap
+}
+
+/* ---------- Notification Center ---------- */
+
+.notif-feed-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 14px 0 6px
+}
+
+.notif-feed-head h4 {
+    font-size: 13px;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: .4px
+}
+
+.notif-feed {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 320px;
+    overflow-y: auto
+}
+
+.notif-item {
+    display: flex;
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    align-items: flex-start
+}
+
+.notif-item i {
+    color: var(--teal);
+    margin-top: 2px
+}
+
+.notif-item p {
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 2px
+}
+
+.notif-item.unread {
+    background: #f0faf9;
+    border-color: #cdeae6
+}
+
 /* ---------- Doctor overview & specialization chips ---------- */
 
 .doctor-overview-head {
