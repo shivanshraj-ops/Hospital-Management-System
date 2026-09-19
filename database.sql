@@ -100,7 +100,10 @@ CREATE TABLE IF NOT EXISTS `appointments` (
   INDEX `idx_appt_date` (`appointment_date`),
   INDEX `idx_appt_status` (`status`),
   INDEX `idx_appt_user` (`user_id`),
+<<<<<<< HEAD
   INDEX `idx_appt_completed` (`completed_at`),
+=======
+>>>>>>> c33837d (update hms)
   CONSTRAINT `fk_appt_patient` FOREIGN KEY (`patient_id`) REFERENCES `patients` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_appt_doctor` FOREIGN KEY (`doctor_id`) REFERENCES `doctors` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_appt_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE

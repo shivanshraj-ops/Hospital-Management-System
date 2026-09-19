@@ -1133,6 +1133,7 @@ $("loginForm").onsubmit = async function (e) {
 
   if (res && res.success) {
     currentUser = res.data.user;
+    try { localStorage.setItem("medicareWasLoggedIn", "1"); } catch (e) {}
     showApp();
     toast("Welcome back, " + currentUser.fullName + "!");
   } else {
@@ -1550,12 +1551,17 @@ async function checkResetTokenInUrl() {
 }
 
 async function checkSession() {
+  var wasLoggedIn = false;
+  try { wasLoggedIn = localStorage.getItem("medicareWasLoggedIn") === "1"; } catch (e) {}
+
   var res = await apiRequest("/api/session");
   if (res && res.success && res.data && res.data.loggedIn && res.data.user) {
     currentUser = res.data.user;
+    try { localStorage.setItem("medicareWasLoggedIn", "1"); } catch (e) {}
     showApp();
   } else {
     currentUser = null;
+    try { localStorage.removeItem("medicareWasLoggedIn"); } catch (e) {}
     if ($("topProfileName")) $("topProfileName").textContent = "—";
     if ($("topProfileRole")) $("topProfileRole").textContent = "—";
     if ($("topAvatar")) $("topAvatar").innerHTML = '<i class="fa-regular fa-user"></i>';
@@ -1563,6 +1569,14 @@ async function checkSession() {
     if ($("acctEmail")) $("acctEmail").textContent = "—";
     $("app").classList.add("hidden");
     $("loginPage").classList.remove("hidden");
+
+    if (wasLoggedIn) {
+      openModal(
+        "Session Expired",
+        '<p style="padding:4px 2px 12px">Your session has ended, so you\'ve been logged out. Please log in again to continue.</p>' +
+        '<div class="modal-actions"><button class="btn btn-primary" type="button" onclick="closeModal()">OK</button></div>'
+      );
+    }
   }
 }
 
@@ -1865,12 +1879,17 @@ async function updateApptStatus(selectEl) {
 
   if (res && res.success) {
     selectEl.dataset.prevStatus = newStatus;
+<<<<<<< HEAD
     selectEl.className = "status-select " + statusSelectClass(newStatus);
+=======
+    selectEl.classList.toggle("status-completed", newStatus === "Completed");
+>>>>>>> c33837d (update hms)
 
     var item = (dashboardStats.todayAppointmentsList || []).find(function (a) { return a.id === id; });
     if (item) item.status = newStatus;
 
     var allItem = (allAppointments || []).find(function (a) { return a.id === id; });
+<<<<<<< HEAD
     if (allItem) {
       allItem.status = newStatus;
       allItem.completed_at = newStatus === "Completed" ? new Date().toISOString() : null;
@@ -1881,6 +1900,11 @@ async function updateApptStatus(selectEl) {
         ? "Appointment " + id + " completed — visible to the patient for 12 more hours"
         : "Appointment " + id + " marked as " + newStatus
     );
+=======
+    if (allItem) allItem.status = newStatus;
+
+    toast("Appointment " + id + " marked as " + newStatus);
+>>>>>>> c33837d (update hms)
     loadDashboard();
     if (currentSection === "appointments") loadAppointmentsSection();
   } else {
@@ -2499,13 +2523,19 @@ function loadAppointmentsSection() {
   if (staffAdmin) loadAllAppointments();
 
   loadMyAppointments();
+<<<<<<< HEAD
   startMyApptTimer();
+=======
+>>>>>>> c33837d (update hms)
 }
 
 /* ---- My Appointments (patient-facing cards) ---- */
 
 var myAppointments = [];
+<<<<<<< HEAD
 var myApptFetchedAt = 0;
+=======
+>>>>>>> c33837d (update hms)
 
 async function loadMyAppointments() {
   var wrap = $("myApptCards");
@@ -2525,7 +2555,10 @@ async function loadMyAppointments() {
   }
 
   myAppointments = res.data || [];
+<<<<<<< HEAD
   myApptFetchedAt = Date.now();
+=======
+>>>>>>> c33837d (update hms)
   renderMyAppointments();
 }
 
@@ -2533,6 +2566,7 @@ function renderMyAppointments() {
   var wrap = $("myApptCards");
   if (!wrap) return;
 
+<<<<<<< HEAD
   // The backend already excludes expired records, but re-checking here means a card
   // vanishes the moment its 12 hours are up rather than on the next page load.
   var visible = myAppointments.filter(function (a) {
@@ -2556,10 +2590,18 @@ function startMyApptTimer() {
   }, 60000);
 }
 
+=======
+  wrap.innerHTML = myAppointments.length
+    ? myAppointments.map(apptCardHtml).join("")
+    : '<p class="muted" style="padding:16px 4px">You haven\'t booked any appointments yet.</p>';
+}
+
+>>>>>>> c33837d (update hms)
 function dateOnly(v) {
   return String(v || "").slice(0, 10);
 }
 
+<<<<<<< HEAD
 // A patient may only act on an appointment the admin hasn't finalised yet.
 function canPatientAct(status) {
   return status === "Pending" || status === "Confirmed";
@@ -2613,6 +2655,10 @@ function detailRow(icon, label, value) {
 
 function apptCardHtml(a) {
   var canAct = canPatientAct(a.status);
+=======
+function apptCardHtml(a) {
+  var canAct = a.status === "Scheduled";
+>>>>>>> c33837d (update hms)
 
   return (
     '<div class="appt-card">' +
@@ -2621,6 +2667,7 @@ function apptCardHtml(a) {
     badge(a.status) +
     "</div>" +
     '<div class="appt-card-body">' +
+<<<<<<< HEAD
     detailRow("fa-user", "Name", a.patient) +
     detailRow("fa-cake-candles", "Age", a.age) +
     detailRow("fa-venus-mars", "Gender", a.gender) +
@@ -2632,6 +2679,13 @@ function apptCardHtml(a) {
     detailRow("fa-money-bill-wave", "Payment", a.paymentMode) +
     "</div>" +
     archiveNotice(a) +
+=======
+    '<div><i class="fa-regular fa-calendar"></i> ' + esc(dateOnly(a.date)) + "</div>" +
+    '<div><i class="fa-regular fa-clock"></i> ' + esc(a.time) + "</div>" +
+    '<div><i class="fa-solid fa-user-doctor"></i> ' + esc(a.doctor || "—") + "</div>" +
+    '<div><i class="fa-solid fa-notes-medical"></i> ' + esc(a.problem || a.notes || "—") + "</div>" +
+    "</div>" +
+>>>>>>> c33837d (update hms)
     (canAct
       ? '<div class="appt-card-actions">' +
         '<button class="btn btn-sm btn-outline" onclick="rescheduleAppointment(\'' + a.id + '\')">' +
@@ -2639,7 +2693,11 @@ function apptCardHtml(a) {
         '<button class="btn btn-sm btn-danger" onclick="cancelAppointment(\'' + a.id + '\')">' +
         '<i class="fa-regular fa-circle-xmark"></i> Cancel</button>' +
         "</div>"
+<<<<<<< HEAD
       : '<p class="muted appt-card-locked">Status is managed by the hospital administration.</p>') +
+=======
+      : "") +
+>>>>>>> c33837d (update hms)
     "</div>"
   );
 }
@@ -2673,14 +2731,24 @@ async function rescheduleAppointment(id) {
     "Reschedule Appointment " + id,
     '<form id="rescheduleForm"><div class="form-grid">' +
 
+<<<<<<< HEAD
     '<div><label>New Preferred Date *</label>' +
+=======
+    '<div><label>New Date *</label>' +
+>>>>>>> c33837d (update hms)
     '<input id="rsDate" type="date" min="' + today + '" value="' +
     (dateOnly(appt.date) >= today ? dateOnly(appt.date) : today) +
     '" required></div>' +
 
+<<<<<<< HEAD
     '<div><label>Time Slot</label>' +
     '<select id="rsSlot">' +
     '<option value="">Keep current slot (' + esc(appt.time) + ")</option>" +
+=======
+    '<div><label>New Time Slot *</label>' +
+    '<select id="rsSlot" required>' +
+    '<option value="">Select a time...</option>' +
+>>>>>>> c33837d (update hms)
     slotOpts +
     "</select></div>" +
 
@@ -2697,7 +2765,12 @@ async function rescheduleAppointment(id) {
     var newDate = $("rsDate").value;
     var newSlot = $("rsSlot").value;
 
+<<<<<<< HEAD
     if (!newDate) return toast("Please select a new preferred date", "error");
+=======
+    if (!newDate) return toast("Please select a new date", "error");
+    if (!newSlot) return toast("Please select a new time slot", "error");
+>>>>>>> c33837d (update hms)
 
     var res = await apiRequest("/api/appointments", "PUT", {
       id: id,
@@ -2708,7 +2781,11 @@ async function rescheduleAppointment(id) {
 
     if (res && res.success) {
       closeModal();
+<<<<<<< HEAD
       toast("Appointment " + id + " rescheduled to " + newDate + ", " + (newSlot || appt.time));
+=======
+      toast("Appointment " + id + " rescheduled to " + newDate + ", " + newSlot);
+>>>>>>> c33837d (update hms)
       loadMyAppointments();
       if (isStaffOrAdmin()) loadAllAppointments();
     } else {
@@ -2739,6 +2816,7 @@ async function loadAllAppointments() {
         return (
           "<tr><td>" + a.id + "</td><td>" + esc(a.patient) + "</td><td>" +
           esc(a.doctor || "—") + "</td><td>" + esc(dateOnly(a.date)) + "</td><td>" + esc(a.time) +
+<<<<<<< HEAD
           "</td><td>" + apptStatusControl(a.id, a.status) + adminVisibilityTag(a) + "</td>" +
           '<td><div class="row-actions">' +
           (a.status === "Cancelled"
@@ -2750,12 +2828,21 @@ async function loadAllAppointments() {
               ? '<button class="mini del" onclick="cancelAppointment(\'' + a.id + '\')" title="Cancel">' +
                 '<i class="fa-regular fa-circle-xmark"></i></button>'
               : "—") +
+=======
+          "</td><td>" + apptStatusControl(a.id, a.status) + "</td>" +
+          '<td><div class="row-actions">' +
+          (a.status !== "Cancelled"
+            ? '<button class="mini del" onclick="cancelAppointment(\'' + a.id + '\')" title="Cancel">' +
+              '<i class="fa-regular fa-circle-xmark"></i></button>'
+            : "—") +
+>>>>>>> c33837d (update hms)
           "</div></td></tr>"
         );
       }).join("")
     : '<tr><td colspan="7" class="empty">No appointments found</td></tr>';
 }
 
+<<<<<<< HEAD
 // Small marker on the admin table showing that a record is no longer on the
 // patient's screen. The row itself remains here and in the database permanently.
 function adminVisibilityTag(a) {
@@ -2776,6 +2863,8 @@ async function clearFromPatientView(id) {
   }
 }
 
+=======
+>>>>>>> c33837d (update hms)
 if ($("apptSearch")) $("apptSearch").oninput = loadAllAppointments;
 if ($("apptFilter")) $("apptFilter").onchange = loadAllAppointments;
 

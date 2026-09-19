@@ -1468,6 +1468,7 @@ tbody tr:hover {
     color: var(--muted)
 }
 
+<<<<<<< HEAD
 .appt-card-body .appt-label {
     color: var(--muted);
     font-weight: 600
@@ -1496,6 +1497,8 @@ tbody tr:hover {
     font-style: italic
 }
 
+=======
+>>>>>>> c33837d (update hms)
 .appt-card-actions {
     display: flex;
     gap: 8px;
