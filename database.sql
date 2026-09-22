@@ -90,10 +90,12 @@ CREATE TABLE IF NOT EXISTS `appointments` (
   `payment_mode` VARCHAR(50) NOT NULL DEFAULT 'Cash Only',
   `notes` TEXT NULL,
   `status` ENUM('Scheduled', 'Completed', 'Cancelled') NOT NULL DEFAULT 'Scheduled',
+  `status_changed_at` DATETIME NULL,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX `idx_appt_date` (`appointment_date`),
   INDEX `idx_appt_status` (`status`),
   INDEX `idx_appt_user` (`user_id`),
+  INDEX `idx_appt_status_changed` (`status_changed_at`),
   CONSTRAINT `fk_appt_patient` FOREIGN KEY (`patient_id`) REFERENCES `patients` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_appt_doctor` FOREIGN KEY (`doctor_id`) REFERENCES `doctors` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_appt_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE

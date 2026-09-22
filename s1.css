@@ -1449,6 +1449,33 @@ tbody tr:hover {
     flex-wrap: wrap
 }
 
+.appt-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #92650c;
+    background: #fff8e6;
+    border: 1px solid #f2dca0;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-top: 8px
+}
+
+.appt-notice i {
+    margin-top: 2px
+}
+
+.appt-notice-row td {
+    padding: 6px 12px 12px !important;
+    border-top: none !important
+}
+
+.appt-notice-row .appt-notice {
+    margin-top: 0
+}
+
 /* ---------- Notification Center ---------- */
 
 .notif-feed-head {

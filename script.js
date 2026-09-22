@@ -2532,6 +2532,19 @@ function dateOnly(v) {
   return String(v || "").slice(0, 10);
 }
 
+// Appointments stay in the list for 2 hours after being marked Completed/Cancelled (the
+// backend already hides anything past that window), so any Completed/Cancelled card that
+// does reach the UI is, by definition, still inside its 2-hour grace period.
+function apptVisibilityNoticeHtml(status) {
+  if (status !== "Completed" && status !== "Cancelled") return "";
+  var verb = status === "Completed" ? "completed" : "cancelled";
+  return (
+    '<div class="appt-notice"><i class="fa-regular fa-clock"></i><span>' +
+    "This appointment has been " + verb + " and will be removed from this view after 2 hours." +
+    "</span></div>"
+  );
+}
+
 function apptCardHtml(a) {
   var canAct = a.status === "Scheduled";
 
@@ -2547,6 +2560,7 @@ function apptCardHtml(a) {
     '<div><i class="fa-solid fa-user-doctor"></i> ' + esc(a.doctor || "—") + "</div>" +
     '<div><i class="fa-solid fa-notes-medical"></i> ' + esc(a.problem || a.notes || "—") + "</div>" +
     "</div>" +
+    apptVisibilityNoticeHtml(a.status) +
     (canAct
       ? '<div class="appt-card-actions">' +
         '<button class="btn btn-sm btn-outline" onclick="rescheduleAppointment(\'' + a.id + '\')">' +
@@ -2652,6 +2666,7 @@ async function loadAllAppointments() {
 
   tbody.innerHTML = allAppointments.length
     ? allAppointments.map(function (a) {
+        var notice = apptVisibilityNoticeHtml(a.status);
         return (
           "<tr><td>" + a.id + "</td><td>" + esc(a.patient) + "</td><td>" +
           esc(a.doctor || "—") + "</td><td>" + esc(dateOnly(a.date)) + "</td><td>" + esc(a.time) +
@@ -2661,7 +2676,8 @@ async function loadAllAppointments() {
             ? '<button class="mini del" onclick="cancelAppointment(\'' + a.id + '\')" title="Cancel">' +
               '<i class="fa-regular fa-circle-xmark"></i></button>'
             : "—") +
-          "</div></td></tr>"
+          "</div></td></tr>" +
+          (notice ? '<tr class="appt-notice-row"><td colspan="7">' + notice + "</td></tr>" : "")
         );
       }).join("")
     : '<tr><td colspan="7" class="empty">No appointments found</td></tr>';
